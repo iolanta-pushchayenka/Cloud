@@ -1,9 +1,8 @@
 Архитектура проекта
 Project
-│
-├── feedback-service
-├── ingredient-service
-└── subscriptions-service
+- feedback-service
+- ingredient-service
+- subscriptions-service
 
 Каждый сервис включает:
 
