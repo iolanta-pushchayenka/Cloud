@@ -101,3 +101,34 @@ python seed_data.py
 
 5. Запуск сервиса
 uvicorn app.main:app --reload
+
+Проверка работы очереди сообщений (Subscription → Feedback)
+
+1.Запустить FeedbackService (consumer):
+cd feedback-servise
+python consumer.py
+
+Ожидаемый результат:
+Consumer запущен и слушает очередь...
+
+2.Запустить SubscriptionService:
+cd subscriptions-service
+uvicorn app.main:app --reload
+
+3.Открыть Swagger:
+http://127.0.0.1:8000/doc
+
+4.Выполнить запрос:
+POST /subscriptions
+
+body:
+{
+  "user_id": 1,
+  "plan_type": "basic"
+}
+
+
+
+
+
+
