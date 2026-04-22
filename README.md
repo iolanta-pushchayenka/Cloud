@@ -103,7 +103,7 @@ python seed_data.py
 uvicorn app.main:app --reload
 
 
-###Проверка работы очереди сообщений (Subscription → Feedback)
+### Проверка работы очереди сообщений (Subscription → Feedback)
 
 1.Запустить FeedbackService (consumer):
 cd feedback-servise
