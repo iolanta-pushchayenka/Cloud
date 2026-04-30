@@ -7,17 +7,33 @@ import json
 from dotenv import load_dotenv
 import os
 from pydantic import BaseModel
+import logging
+
+# ---------------- logging ------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+# ---------------- app ----------------
+app = FastAPI()
+
+# ---------------- config ----------------
+load_dotenv()
+
+CONNECTION_STRING = os.getenv("CONNECTION_STRING")
+QUEUE_NAME = os.getenv("QUEUE_NAME")
+
+# ---------------- schemas ----------------
+
 
 class SubscriptionCreate(BaseModel):
     user_id: int
     plan_type: str
 
-load_dotenv()
+# ---------------- db ----------------
 
-app = FastAPI()
-
-CONNECTION_STRING = os.getenv("CONNECTION_STRING")
-QUEUE_NAME = os.getenv("QUEUE_NAME")
 
 def get_db():
     db = SessionLocal()
@@ -25,6 +41,8 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# ---------------- endpoints ----------------
 
 
 @app.get("/subscriptions")
@@ -52,10 +70,16 @@ def get_subscriptions(db: Session = Depends(get_db)):
             ]
         })
 
+    logger.info("Fetched subscriptions")
     return result
 
+
 @app.post("/subscriptions")
-def create_subscription(data: SubscriptionCreate, db: Session = Depends(get_db)):
+def create_subscription(
+        data: SubscriptionCreate,
+        db: Session = Depends(get_db)):
+    logger.info("Creating subscription request received")
+
     new_sub = Subscription(
         user_id=data.user_id,
         plan_type=data.plan_type,
@@ -66,7 +90,6 @@ def create_subscription(data: SubscriptionCreate, db: Session = Depends(get_db))
     db.commit()
     db.refresh(new_sub)
 
-    # 🔥 ТРИГГЕР — отправка в очередь
     send_message({
         "event": "subscription_created",
         "subscription_id": new_sub.subscription_id
@@ -76,6 +99,9 @@ def create_subscription(data: SubscriptionCreate, db: Session = Depends(get_db))
         "status": "created",
         "subscription_id": new_sub.subscription_id
     }
+
+# ---------------- service bus ----------------
+
 
 def send_message(data: dict):
     with ServiceBusClient.from_connection_string(CONNECTION_STRING) as client:

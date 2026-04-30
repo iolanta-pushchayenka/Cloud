@@ -18,6 +18,7 @@ def process_message(data):
         print(f"Новая подписка: {data.get('subscription_id')}")
         print("Создаём feedback запись...")
 
+
 def receive_messages():
     with ServiceBusClient.from_connection_string(CONNECTION_STRING) as client:
         with client.get_queue_receiver(queue_name=QUEUE_NAME) as receiver:
@@ -32,12 +33,13 @@ def receive_messages():
 
                 try:
                     data = json.loads(body)
-                except:
+                except BaseException:
                     data = {"raw": body}
 
                 process_message(data)
 
-                receiver.complete_message(message) 
+                receiver.complete_message(message)
+
 
 if __name__ == "__main__":
     print("Consumer запущен и слушает очередь...")

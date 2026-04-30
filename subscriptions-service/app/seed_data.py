@@ -26,7 +26,6 @@ try:
     db.refresh(sub1)
     db.refresh(sub2)
 
-
     item1 = SubscriptionItems(
         subscription_id=sub1.subscription_id,
         ingredient_id=1,   # Tomato
