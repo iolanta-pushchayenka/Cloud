@@ -2,3 +2,9 @@ fastapi
 uvicorn
 sqlalchemy
 python-dotenv
+requests
+pika
+pytest
+azure-servicebus
+pytest
+httpx

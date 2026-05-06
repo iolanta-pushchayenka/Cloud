@@ -1,0 +1,32 @@
+# version: "3.9"
+
+services:
+  subscription-service:
+    build: ./subscriptions-service
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: sqlite:///./test.db
+    depends_on:
+      - ingredient-service
+      - rabbitmq
+
+  ingredient-service:
+    build: ./ingredient-service
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: sqlite:///./test.db
+
+  feedback-service:
+    build: ./feedback-service
+    environment:
+      DATABASE_URL: sqlite:///./test.db
+    depends_on:
+      - rabbitmq
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"

@@ -1,40 +1,41 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
+
 from app.database import SessionLocal
-from app.models import Subscription, SubscriptionItems
-from azure.servicebus import ServiceBusClient, ServiceBusMessage
-import json
-from dotenv import load_dotenv
-import os
+from app.models import Subscription, SubscriptionItems, Base
+from app.database import engine
+
 from pydantic import BaseModel
 import logging
+import requests
+import os
+import json
 
-# ---------------- logging ------------------
+# ---------------- logging ----------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
 logger = logging.getLogger(__name__)
 
 # ---------------- app ----------------
 app = FastAPI()
 
-# ---------------- config ----------------
-load_dotenv()
+# ✅ СОЗДАНИЕ ТАБЛИЦ (КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ)
+Base.metadata.create_all(bind=engine)
 
-CONNECTION_STRING = os.getenv("CONNECTION_STRING")
-QUEUE_NAME = os.getenv("QUEUE_NAME")
+# ---------------- config ----------------
+INGREDIENT_SERVICE_URL = "http://ingredient-service:3000"
+
 
 # ---------------- schemas ----------------
-
-
 class SubscriptionCreate(BaseModel):
     user_id: int
     plan_type: str
 
-# ---------------- db ----------------
 
-
+# ---------------- db dependency ----------------
 def get_db():
     db = SessionLocal()
     try:
@@ -42,9 +43,8 @@ def get_db():
     finally:
         db.close()
 
+
 # ---------------- endpoints ----------------
-
-
 @app.get("/subscriptions")
 def get_subscriptions(db: Session = Depends(get_db)):
     subscriptions = db.query(Subscription).all()
@@ -75,11 +75,24 @@ def get_subscriptions(db: Session = Depends(get_db)):
 
 
 @app.post("/subscriptions")
-def create_subscription(
-        data: SubscriptionCreate,
-        db: Session = Depends(get_db)):
+def create_subscription(data: SubscriptionCreate, db: Session = Depends(get_db)):
+
     logger.info("Creating subscription request received")
 
+    # ---------------- HTTP CALL ----------------
+    try:
+        ingredient_response = requests.get(
+            f"{INGREDIENT_SERVICE_URL}/ingredients",
+            timeout=3
+        )
+        ingredients = ingredient_response.json()
+        logger.info("Fetched ingredients from IngredientService")
+
+    except Exception as e:
+        logger.error(f"IngredientService error: {e}")
+        ingredients = []
+
+    # ---------------- create subscription ----------------
     new_sub = Subscription(
         user_id=data.user_id,
         plan_type=data.plan_type,
@@ -90,6 +103,7 @@ def create_subscription(
     db.commit()
     db.refresh(new_sub)
 
+    # ---------------- send message ----------------
     send_message({
         "event": "subscription_created",
         "subscription_id": new_sub.subscription_id
@@ -97,15 +111,24 @@ def create_subscription(
 
     return {
         "status": "created",
-        "subscription_id": new_sub.subscription_id
+        "subscription_id": new_sub.subscription_id,
+        "ingredients_preview": ingredients
     }
 
+
 # ---------------- service bus ----------------
-
-
 def send_message(data: dict):
-    with ServiceBusClient.from_connection_string(CONNECTION_STRING) as client:
-        sender = client.get_queue_sender(queue_name=QUEUE_NAME)
+    from azure.servicebus import ServiceBusClient, ServiceBusMessage
+
+    connection_string = os.getenv("CONNECTION_STRING")
+    queue_name = os.getenv("QUEUE_NAME")
+
+    if not connection_string or not queue_name:
+        logger.warning("ServiceBus not configured")
+        return
+
+    with ServiceBusClient.from_connection_string(connection_string) as client:
+        sender = client.get_queue_sender(queue_name=queue_name)
 
         with sender:
             message = ServiceBusMessage(json.dumps(data))
